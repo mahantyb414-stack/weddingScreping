@@ -131,9 +131,12 @@ async def run_batch():
 
                     location_id = loc["id"]
                     try:
-                        saved, collect_ok = await process_location(
-                            loc, ctx, job_id, search_terms,
-                            config.SCRAPER_CATEGORY, idx, total,
+                        saved, collect_ok = await asyncio.wait_for(
+                            process_location(
+                                loc, ctx, job_id, search_terms,
+                                config.SCRAPER_CATEGORY, idx, total,
+                            ),
+                            timeout=180,  # 3 min max per location
                         )
                         if saved == 0 and collect_ok:
                             logger.warning(f"[{idx}/{total}] Zero results — possible block. Marking failed.")
@@ -145,6 +148,11 @@ async def run_batch():
                         else:
                             await mark_location_completed(job_id, location_id)
                             logger.info(f"[{idx}/{total}] Completed.")
+                    except asyncio.TimeoutError:
+                        logger.error(f"[{idx}/{total}] Location timed out after 3 minutes — marking failed.")
+                        await mark_location_failed(
+                            job_id, location_id, "per-location timeout (3 min)", config.MAX_LOCATION_ATTEMPTS
+                        )
                     except Exception as exc:
                         logger.error(f"[{idx}/{total}] Location failed: {exc}")
                         await mark_location_failed(

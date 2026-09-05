@@ -31,7 +31,7 @@ MAX_RESULT_DISTANCE_CITY  = 30_000
 MAX_RESULT_DISTANCE_TOWN  = 20_000
 MAX_RESULT_DISTANCE_RURAL = 15_000
 
-SCROLL_ITERS = 80
+SCROLL_ITERS = 20
 MAX_CTX_USES = 40
 
 _USER_AGENTS = [
@@ -206,13 +206,21 @@ class GoogleMapsGeoScraper:
     # ── URL collection (unchanged logic) ─────────────────────────────────────
 
     async def _collect_urls(self, page: Page, lat: float, lng: float,
-                            zoom: int, term: str, retries: int = 3) -> List[str]:
+                            zoom: int, term: str, retries: int = 2) -> List[str]:
         for attempt in range(1, retries + 1):
             try:
                 url = self._build_url(term, lat, lng, zoom)
                 logger.info(f"  [collect] attempt {attempt} zoom={zoom} term='{term}'")
-                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 await asyncio.sleep(random.uniform(0.5, 1.5))
+
+                # Detect Google block / CAPTCHA / redirect away from Maps
+                current = page.url
+                if "google.com/maps" not in current and "maps/search" not in current and "/maps/place/" not in current:
+                    logger.warning(f"  [collect] redirected away from Maps ({current[:80]}) — possible block")
+                    await asyncio.sleep(5 * attempt)
+                    continue
+
                 await self._handle_cookie_consent(page)
 
                 if "/maps/place/" in page.url:
@@ -220,7 +228,7 @@ class GoogleMapsGeoScraper:
 
                 try:
                     await page.wait_for_selector(
-                        "div[role='feed'], a[href*='/maps/place/']", timeout=30000
+                        "div[role='feed'], a[href*='/maps/place/']", timeout=15000
                     )
                 except PWTimeout:
                     logger.warning("  [collect] result container not found, retrying")
@@ -274,8 +282,8 @@ class GoogleMapsGeoScraper:
     async def _scrape_details(self, page: Page, url: str) -> Optional[dict]:
         for attempt in range(1, 3):
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=90000)
-                await page.wait_for_selector("h1.DUwDvf", timeout=15000)
+                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_selector("h1.DUwDvf", timeout=10000)
                 break
             except Exception as exc:
                 if attempt == 2:
