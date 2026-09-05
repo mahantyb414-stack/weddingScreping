@@ -17,5 +17,13 @@ SCRAPER_CATEGORY      = os.getenv("SCRAPER_CATEGORY", "mehendi_artist")
 SCRAPER_STATE         = os.getenv("SCRAPER_STATE",    "Jharkhand")
 MATCHERS_DIR          = os.path.join(os.path.dirname(os.path.dirname(__file__)), "matchers")
 
-# Stale-running recovery: locations stuck in 'running' longer than this are reset
-STALE_RUNNING_MINUTES = int(os.getenv("STALE_RUNNING_MINUTES", "30"))
+# Stale-running recovery
+STALE_RUNNING_MINUTES        = int(os.getenv("STALE_RUNNING_MINUTES",        "30"))
+SCRAPE_LEASE_TIMEOUT_MINUTES = int(os.getenv("SCRAPE_LEASE_TIMEOUT_MINUTES", "20"))
+
+# API / server
+PORT                  = int(os.getenv("PORT", "10000"))
+SCRAPE_TRIGGER_TOKEN  = os.getenv("SCRAPE_TRIGGER_TOKEN", "")
+
+# Runtime limit per triggered batch (minutes)
+MAX_RUNTIME_MINUTES   = int(os.getenv("MAX_RUNTIME_MINUTES", "12"))

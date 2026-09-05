@@ -9,3 +9,5 @@ jharkhand_progress.json
 scraper_jharkhand.log
 .venv/
 venv/
+*.xlsx
+*.xls

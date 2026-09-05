@@ -11,4 +11,7 @@ RUN playwright install chromium
 
 COPY . .
 
-CMD ["python", "-m", "app.worker"]
+# Render injects $PORT at runtime; default to 10000 for local Docker runs.
+ENV PORT=10000
+
+CMD uvicorn app.api:app --host 0.0.0.0 --port $PORT

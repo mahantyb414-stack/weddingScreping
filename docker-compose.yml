@@ -1,0 +1,10 @@
+services:
+  scraper:
+    build: .
+    ports:
+      - "10000:10000"
+    env_file:
+      - .env
+    environment:
+      PORT: "10000"
+    restart: unless-stopped

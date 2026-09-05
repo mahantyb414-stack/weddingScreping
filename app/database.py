@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-from app.config import DATABASE_URL, STALE_RUNNING_MINUTES
+from app.config import DATABASE_URL, STALE_RUNNING_MINUTES, SCRAPE_LEASE_TIMEOUT_MINUTES
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,30 @@ def get_pool() -> asyncpg.Pool:
     return _pool
 
 
+# ── Advisory lock (prevents concurrent scraper workers) ──────────────────────
+
+_ADVISORY_LOCK_KEY = 7_777_777  # arbitrary stable integer
+
+
+async def acquire_advisory_lock(conn) -> bool:
+    """Try to acquire a session-level advisory lock. Returns True if acquired."""
+    return await conn.fetchval("SELECT pg_try_advisory_lock($1)", _ADVISORY_LOCK_KEY)
+
+
+async def release_advisory_lock(conn):
+    await conn.fetchval("SELECT pg_advisory_unlock($1)", _ADVISORY_LOCK_KEY)
+
+
 # ── Job helpers ───────────────────────────────────────────────────────────────
+
+async def get_running_job() -> Optional[asyncpg.Record]:
+    """Return the currently running job row, or None."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchrow(
+            "SELECT * FROM scrape_jobs WHERE status='running' ORDER BY id DESC LIMIT 1"
+        )
+
 
 async def get_or_create_job(category: str, state: str) -> int:
     """Return the id of an existing running job or create a new one."""
@@ -90,7 +113,7 @@ async def recover_stale_locations():
             f"""UPDATE scrape_locations
                 SET status='pending', updated_at=NOW()
                 WHERE status='running'
-                  AND updated_at < NOW() - INTERVAL '{STALE_RUNNING_MINUTES} minutes'"""
+                  AND updated_at < NOW() - INTERVAL '{SCRAPE_LEASE_TIMEOUT_MINUTES} minutes'"""
         )
         # result is e.g. 'UPDATE 3'
         n = int(result.split()[-1]) if result else 0
